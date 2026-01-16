@@ -13,6 +13,7 @@ from app.camera_module import CameraStream
 from app.common import Detection
 from app.config import DEBUG_DRAW, WINDOW_NAME
 from app.logic_module import DecisionEngine
+from app.price.price_module import PriceEngine
 from app.speech_module import SpeechEngine
 from app.vision_module import VisionEngine
 from app.voice.commands import key_to_mode
@@ -51,6 +52,7 @@ def main() -> None:
     logic = DecisionEngine()
     speech = SpeechEngine()
     banknote = BanknoteEngine()
+    price = PriceEngine()
 
     if DEBUG_DRAW:
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
@@ -78,6 +80,8 @@ def main() -> None:
 
             if mode == "banknote":
                 decision = banknote.predict(frame)
+            elif mode == "price":
+                decision = price.predict(frame)
             else:
                 decision = logic.decide(mode, detections, frame.shape)
 
