@@ -5,9 +5,10 @@ import time
 speech = SpeechEngine(SpeechConfig(cooldown_seconds=0.0))
 
 
-print(SpeechFormatter.full("Banane", 2, 89))
+speech.speak(SpeechFormatter.from_data("Banane"))
+speech.speak(SpeechFormatter.from_data("Banane", preis_cent=89))
+speech.speak(SpeechFormatter.from_data("Banane", anzahl=2, preis_cent=89))
 
-speech.speak(SpeechFormatter.full("Banane", 2, 89))
 
 time.sleep(10)   # wichtig!
 speech.shutdown()
