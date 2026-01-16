@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
+import queue
+import threading
 from typing import List
 
 import cv2
@@ -18,8 +20,9 @@ from app.price_ocr_module import PriceOCREngine
 from app.speech_module import SpeechEngine
 from app.text_ocr_module import TextOCREngine
 from app.vision_module import VisionEngine
-from app.voice.commands import key_to_mode
+from app.voice.commands import key_to_mode, text_to_mode
 from app.voice.interaction_controller import InteractionController
+from app.voice.stt_vosk_stub import VoskSttStub
 
 
 def _draw_debug(
@@ -86,6 +89,24 @@ def _extract_roi(frame, detections: List[Detection]):
     return frame[y1:y2, x1:x2]
 
 
+def _format_spoken_text(
+    decision: Decision, mode: str, interaction: InteractionController
+) -> str:
+    if not decision.text_to_say:
+        return ""
+    if decision.label and mode in {"identify", "count", "price", "full", "banknote"}:
+        formatted = interaction.format_for_command(
+            mode,
+            gegenstand=decision.label,
+            anzahl=decision.count,
+            preis_cent=decision.price_cent,
+            position_text=decision.position_text,
+        )
+        if formatted:
+            return formatted
+    return decision.text_to_say
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
     weights_path = os.path.join("assets", "yolo_weights.pt")
@@ -100,6 +121,19 @@ def main() -> None:
     price = PriceEngine()
     price_ocr = PriceOCREngine()
     text_ocr = TextOCREngine()
+
+    command_queue: queue.Queue[str] = queue.Queue()
+    stop_event = threading.Event()
+    stt = VoskSttStub()
+    if stt.available():
+        threading.Thread(
+            target=stt.listen_loop,
+            name="VoskListener",
+            args=(command_queue, stop_event),
+            daemon=True,
+        ).start()
+    else:
+        logging.warning("STT unavailable; set VOSK_MODEL_PATH to a Vosk model directory.")
 
     if DEBUG_DRAW:
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
@@ -140,7 +174,18 @@ def main() -> None:
                     speech.speak(text_result.text_to_say)
                     logging.info("Text OCR: %s", text_result.debug_text)
                 continue
+
             mode = key_to_mode(key)
+            if mode == "idle":
+                try:
+                    spoken_text = command_queue.get_nowait()
+                except queue.Empty:
+                    continue
+
+                if spoken_text.lower() in ("q", "quit", "exit"):
+                    break
+
+                mode = text_to_mode(spoken_text)
             if mode in {"banknote", "price"}:
                 active_mode = mode
             elif mode != "idle":
@@ -152,28 +197,32 @@ def main() -> None:
                 else:
                     decision = logic.decide(mode, detections, raw_frame.shape)
                 last_decision = decision
-                if decision.text_to_say and decision.text_to_say != last_spoken_text and speech.can_speak():
-                    speech.speak(decision.text_to_say)
-                    last_spoken_text = decision.text_to_say
+                spoken_text = _format_spoken_text(decision, mode, interaction)
+                if spoken_text and spoken_text != last_spoken_text and speech.can_speak():
+                    speech.speak(spoken_text)
+                    last_spoken_text = spoken_text
                     logging.info("Decision: %s", decision.debug_text)
 
             if active_mode == "banknote":
                 roi = _extract_roi(raw_frame, detections)
                 decision = banknote.predict(roi)
                 last_decision = decision
-                if decision.text_to_say and decision.text_to_say != last_spoken_text and speech.can_speak():
-                    speech.speak(decision.text_to_say)
-                    last_spoken_text = decision.text_to_say
+                spoken_text = _format_spoken_text(decision, "banknote", interaction)
+                if spoken_text and spoken_text != last_spoken_text and speech.can_speak():
+                    speech.speak(spoken_text)
+                    last_spoken_text = spoken_text
                     logging.info("Decision: %s", decision.debug_text)
             elif active_mode == "price":
                 roi = _extract_roi(raw_frame, detections)
                 decision = price.predict(roi)
                 last_decision = decision
-                if decision.text_to_say and decision.text_to_say != last_spoken_text and speech.can_speak():
-                    speech.speak(decision.text_to_say)
-                    last_spoken_text = decision.text_to_say
+                spoken_text = _format_spoken_text(decision, "price", interaction)
+                if spoken_text and spoken_text != last_spoken_text and speech.can_speak():
+                    speech.speak(spoken_text)
+                    last_spoken_text = spoken_text
                     logging.info("Decision: %s", decision.debug_text)
     finally:
+        stop_event.set()
         camera.release()
         cv2.destroyAllWindows()
 

@@ -117,7 +117,12 @@ class TfliteBanknoteStub:
 
         text = f"{stable} Euro."
         debug = f"tflite {stable} {conf:.2f}"
-        return Decision(text_to_say=text, debug_text=debug, conf=conf)
+        return Decision(
+            text_to_say=text,
+            debug_text=debug,
+            conf=conf,
+            label=str(stable),
+        )
 
     def _load_tflite_runtime(self):
         try:

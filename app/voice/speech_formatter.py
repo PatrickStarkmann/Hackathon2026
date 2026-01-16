@@ -47,6 +47,28 @@ class SpeechFormatter:
         return f"{gegenstand}. Preis {euro} Euro {cent} Cent."
 
     # -------------------------------
+    # Banknote
+    @staticmethod
+    def banknote(wert_euro: int) -> str:
+        number_words = {
+            1: "Ein",
+            2: "Zwei",
+            3: "Drei",
+            4: "Vier",
+            5: "Fuenf",
+            6: "Sechs",
+            7: "Sieben",
+            8: "Acht",
+            9: "Neun",
+            10: "Zehn",
+            20: "Zwanzig",
+            50: "Fuenfzig",
+            100: "Hundert",
+        }
+        number_text = number_words.get(wert_euro, str(wert_euro))
+        return f"{number_text} Euro."
+
+    # -------------------------------
     # Full
     @staticmethod
     def full(

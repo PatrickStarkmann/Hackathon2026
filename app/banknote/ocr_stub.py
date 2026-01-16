@@ -54,7 +54,12 @@ class OcrBanknoteStub:
                     debug_text="ocr_unstable",
                     conf=0.0,
                 )
-            return Decision(text_to_say=f"{stable} Euro.", debug_text=f"ocr {stable}", conf=1.0)
+            return Decision(
+                text_to_say=f"{stable} Euro.",
+                debug_text=f"ocr {stable}",
+                conf=1.0,
+                label=str(stable),
+            )
         except Exception as exc:
             self._logger.error("OCR failed: %s", exc)
             return Decision(text_to_say="", debug_text="ocr_unavailable: ocr_error", conf=0.0)
