@@ -24,5 +24,10 @@ class VoteAggregator:
             return label
         return None
 
+    def last(self) -> Optional[str]:
+        if not self._buffer:
+            return None
+        return self._buffer[-1]
+
     def clear(self) -> None:
         self._buffer.clear()

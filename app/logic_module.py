@@ -9,6 +9,7 @@ from typing import List, Tuple, Dict
 from app.common import Decision, Detection
 from app.config import CONF_THRESHOLD, OBSTACLE_AREA_THRESHOLD, VOTE_MIN, VOTE_N
 from app.logic.aggregator import VoteAggregator
+from app.voice.speech_formatter import SpeechFormatter
 
 
 class DecisionEngine:
@@ -82,9 +83,15 @@ class DecisionEngine:
         pos_text = self._spoken_position(position)
 
         # Konfidenz nicht ansagen, nur nutzen
-        text = f"{stable_label} {pos_text}"
+        text = SpeechFormatter.identify(stable_label, pos_text)
         debug = f"Identify {stable_label} (raw={top.label}, conf={top.conf:.2f}, smooth={smoothed_conf:.2f}) {position}"
-        return Decision(text_to_say=text, debug_text=debug, conf=smoothed_conf)
+        return Decision(
+            text_to_say=text,
+            debug_text=debug,
+            conf=smoothed_conf,
+            label=stable_label,
+            position_text=pos_text,
+        )
 
     # -----------------------
     # Count-Modus
@@ -114,7 +121,7 @@ class DecisionEngine:
         # dominantes Label wählen (das am häufigsten vorkommt)
         dominant_label = max(label_counts.items(), key=lambda item: item[1])[0]
 
-        # Voting für stabilen Typ        # Voting fuer stabilen Typ
+        # Voting fuer stabilen Typ
         self._label_votes_count.add(dominant_label)
         stable_label = self._label_votes_count.majority(VOTE_MIN)
 
@@ -128,14 +135,20 @@ class DecisionEngine:
         if count == 0:
             return self._uncertain("Unsicher beim Zaehlen, bitte leicht die Perspektive aendern")
 
-        text = f"{count} {chosen_label}"
+        text = SpeechFormatter.count(chosen_label, count)
         debug = (
             f"Count {chosen_label}: {count} "
             f"(filtered={len(filtered)}, raw={len(detections)}, "
             f"stable={stable_label})"
         )
         conf = 1.0 if stable_label is not None else 0.6
-        return Decision(text_to_say=text, debug_text=debug, conf=conf)
+        return Decision(
+            text_to_say=text,
+            debug_text=debug,
+            conf=conf,
+            label=chosen_label,
+            count=count,
+        )
 
     # -----------------------
     # Obstacle-Modus

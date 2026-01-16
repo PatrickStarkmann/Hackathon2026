@@ -10,6 +10,7 @@ COMMANDS: Dict[str, str] = {
     "c": "count",
     "o": "obstacle",
     "b": "banknote",
+    "p": "price",
 }
 
 
