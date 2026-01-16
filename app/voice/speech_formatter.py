@@ -11,16 +11,29 @@ class SpeechFormatter:
     # -------------------------------
     # Identify
     @staticmethod
-    def identify(gegenstand: str) -> str:
+    def identify(gegenstand: str, position: str | None = None) -> str:
+        if position:
+            return f"{gegenstand} erkannt. {position}."
         return f"{gegenstand} erkannt."
 
     # -------------------------------
     # Count
     @staticmethod
     def count(gegenstand: str, anzahl: int) -> str:
-        if anzahl == 1:
-            return f"Ein {gegenstand}."
-        return f"{anzahl} {gegenstand}."
+        number_words = {
+            1: "Ein",
+            2: "Zwei",
+            3: "Drei",
+            4: "Vier",
+            5: "Fuenf",
+            6: "Sechs",
+            7: "Sieben",
+            8: "Acht",
+            9: "Neun",
+            10: "Zehn",
+        }
+        number_text = number_words.get(anzahl, str(anzahl))
+        return f"{gegenstand}. {number_text} Stück."
 
     # -------------------------------
     # Price

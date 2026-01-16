@@ -16,6 +16,7 @@ from app.logic_module import DecisionEngine
 from app.speech_module import SpeechEngine
 from app.vision_module import VisionEngine
 from app.voice.commands import key_to_mode
+from app.voice.interaction_controller import InteractionController
 
 
 def _draw_debug(frame, detections: List[Detection], fps: float, mode: str) -> None:
@@ -47,9 +48,12 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
     weights_path = os.path.join("assets", "yolo_weights.pt")
     camera = CameraStream()
-    vision = VisionEngine(weights_path=weights_path)
+    vision = VisionEngine(
+        weights_path=weights_path, allowed_labels=["banana", "orange", "bottle"]
+    )
     logic = DecisionEngine()
     speech = SpeechEngine()
+    interaction = InteractionController(speech)
     banknote = BanknoteEngine()
 
     if DEBUG_DRAW:
@@ -82,7 +86,18 @@ def main() -> None:
                 decision = logic.decide(mode, detections, frame.shape)
 
             if decision.text_to_say:
-                speech.speak(decision.text_to_say)
+                spoken_text = decision.text_to_say
+                if decision.label and mode in ("identify", "count", "price", "full"):
+                    formatted = interaction.format_for_command(
+                        mode,
+                        gegenstand=decision.label,
+                        anzahl=decision.count,
+                        preis_cent=decision.price_cent,
+                        position_text=decision.position_text,
+                    )
+                    if formatted:
+                        spoken_text = formatted
+                speech.speak(spoken_text)
                 logging.info("Decision: %s", decision.debug_text)
     finally:
         camera.release()
