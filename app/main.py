@@ -10,7 +10,7 @@ import cv2
 
 from app.banknote.banknote_module import BanknoteEngine
 from app.camera_module import CameraStream
-from app.common import Detection
+from app.common import Decision, Detection
 from app.config import DEBUG_DRAW, WINDOW_NAME
 from app.logic_module import DecisionEngine
 from app.price.price_module import PriceEngine
@@ -19,7 +19,9 @@ from app.vision_module import VisionEngine
 from app.voice.commands import key_to_mode
 
 
-def _draw_debug(frame, detections: List[Detection], fps: float, mode: str) -> None:
+def _draw_debug(
+    frame, detections: List[Detection], fps: float, mode: str, last_decision: Decision | None
+) -> None:
     for det in detections:
         x1, y1, x2, y2 = det.bbox
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
@@ -42,6 +44,43 @@ def _draw_debug(frame, detections: List[Detection], fps: float, mode: str) -> No
         (255, 0, 0),
         2,
     )
+    if last_decision is not None:
+        cv2.putText(
+            frame,
+            last_decision.debug_text,
+            (10, 55),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 255),
+            2,
+        )
+        if last_decision.text_to_say:
+            cv2.putText(
+                frame,
+                f"say: {last_decision.text_to_say}",
+                (10, 75),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 255, 255),
+                2,
+            )
+
+
+def _extract_roi(frame, detections: List[Detection]):
+    if not detections:
+        return frame
+    h, w = frame.shape[:2]
+    best = max(detections, key=lambda det: (det.bbox[2] - det.bbox[0]) * (det.bbox[3] - det.bbox[1]))
+    x1, y1, x2, y2 = best.bbox
+    dx = int((x2 - x1) * 0.1)
+    dy = int((y2 - y1) * 0.1)
+    x1 = max(x1 - dx, 0)
+    y1 = max(y1 - dy, 0)
+    x2 = min(x2 + dx, w)
+    y2 = min(y2 + dy, h)
+    if x2 <= x1 or y2 <= y1:
+        return frame
+    return frame[y1:y2, x1:x2]
 
 
 def main() -> None:
@@ -58,6 +97,9 @@ def main() -> None:
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
 
     mode = "idle"
+    active_mode: str | None = None
+    last_decision: Decision | None = None
+    last_spoken_text = ""
     try:
         while True:
             frame = camera.read()
@@ -67,27 +109,47 @@ def main() -> None:
                     break
                 continue
             detections = vision.detect(frame)
+            display_mode = active_mode or mode
             if DEBUG_DRAW:
-                _draw_debug(frame, detections, camera.fps, mode)
+                _draw_debug(frame, detections, camera.fps, display_mode, last_decision)
                 cv2.imshow(WINDOW_NAME, frame)
 
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 break
             mode = key_to_mode(key)
-            if mode == "idle":
-                continue
+            if mode in {"banknote", "price"}:
+                active_mode = mode
+            elif mode != "idle":
+                active_mode = None
+                if mode == "banknote":
+                    decision = banknote.predict(frame)
+                elif mode == "price":
+                    decision = price.predict(frame)
+                else:
+                    decision = logic.decide(mode, detections, frame.shape)
+                last_decision = decision
+                if decision.text_to_say and decision.text_to_say != last_spoken_text and speech.can_speak():
+                    speech.speak(decision.text_to_say)
+                    last_spoken_text = decision.text_to_say
+                    logging.info("Decision: %s", decision.debug_text)
 
-            if mode == "banknote":
-                decision = banknote.predict(frame)
-            elif mode == "price":
-                decision = price.predict(frame)
-            else:
-                decision = logic.decide(mode, detections, frame.shape)
-
-            if decision.text_to_say:
-                speech.speak(decision.text_to_say)
-                logging.info("Decision: %s", decision.debug_text)
+            if active_mode == "banknote":
+                roi = _extract_roi(frame, detections)
+                decision = banknote.predict(roi)
+                last_decision = decision
+                if decision.text_to_say and decision.text_to_say != last_spoken_text and speech.can_speak():
+                    speech.speak(decision.text_to_say)
+                    last_spoken_text = decision.text_to_say
+                    logging.info("Decision: %s", decision.debug_text)
+            elif active_mode == "price":
+                roi = _extract_roi(frame, detections)
+                decision = price.predict(roi)
+                last_decision = decision
+                if decision.text_to_say and decision.text_to_say != last_spoken_text and speech.can_speak():
+                    speech.speak(decision.text_to_say)
+                    last_spoken_text = decision.text_to_say
+                    logging.info("Decision: %s", decision.debug_text)
     finally:
         camera.release()
         cv2.destroyAllWindows()

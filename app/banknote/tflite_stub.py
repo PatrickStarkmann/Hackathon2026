@@ -9,7 +9,7 @@ from typing import Optional
 import numpy as np
 
 from app.common import Decision
-from app.config import BANKNOTE_CONF_THRESHOLD, BANKNOTE_VOTE_MIN, BANKNOTE_VOTE_N
+from app.config import BANKNOTE_CONF_THRESHOLD, BANKNOTE_MARGIN, BANKNOTE_VOTE_MIN, BANKNOTE_VOTE_N
 from app.logic.aggregator import VoteAggregator
 
 
@@ -36,6 +36,7 @@ class TfliteBanknoteStub:
         self._labels = ["kein geld", "5", "10", "20", "50", "100"]
         self._expected_labels = {"kein geld", "5", "10", "20", "50", "100"}
         self._reason: Optional[str] = None
+        self._last_label: Optional[str] = None
 
         if self._labels_path.exists():
             raw_labels = [line.strip() for line in self._labels_path.read_text().splitlines() if line.strip()]
@@ -56,8 +57,10 @@ class TfliteBanknoteStub:
             self._interpreter.allocate_tensors()
             self._input_details = self._interpreter.get_input_details()
             self._output_details = self._interpreter.get_output_details()
-            output_shape = self._output_details[0].get("shape", [])
-            if output_shape and int(output_shape[-1]) != len(self._labels):
+            output_shape = self._output_details[0].get("shape")
+            if output_shape is not None:
+                output_shape = list(output_shape)
+            if output_shape is not None and len(output_shape) > 0 and int(output_shape[-1]) != len(self._labels):
                 self._logger.warning(
                     "Banknote label count (%s) does not match model output (%s).",
                     len(self._labels),
@@ -89,12 +92,23 @@ class TfliteBanknoteStub:
         conf = float(np.max(scores))
         label_idx = int(np.argmax(scores))
         label = self._labels[label_idx] if label_idx < len(self._labels) else str(label_idx)
+        top2 = np.argsort(scores)[-2:][::-1]
+        top2_labels = []
+        for idx in top2:
+            name = self._labels[int(idx)] if int(idx) < len(self._labels) else str(int(idx))
+            top2_labels.append(f"{name}:{float(scores[int(idx)]):.2f}")
+        margin = float(scores[int(top2[0])] - scores[int(top2[1])]) if len(top2) > 1 else conf
+        if self._last_label is not None and label != self._last_label and conf >= self._conf_threshold:
+            self._votes.clear()
+        self._last_label = label
         self._votes.add(label)
         stable = self._votes.majority(self._vote_min)
+        if stable is None and conf >= self._conf_threshold and margin >= BANKNOTE_MARGIN:
+            stable = label
 
-        if conf < self._conf_threshold or stable is None:
+        if conf < self._conf_threshold or stable is None or margin < BANKNOTE_MARGIN:
             text = "Unsicher. Bitte Schein flach halten und nah an die Kamera."
-            debug = f"tflite_uncertain {label} {conf:.2f}"
+            debug = f"tflite_uncertain {label} {conf:.2f} m={margin:.2f} top={','.join(top2_labels)}"
             return Decision(text_to_say=text, debug_text=debug, conf=conf)
 
         stable_norm = stable.lower().replace(" ", "") if stable else ""
