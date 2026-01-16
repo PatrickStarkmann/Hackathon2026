@@ -7,9 +7,17 @@ from typing import Dict
 
 COMMANDS: Dict[str, str] = {
     "was ist das": "identify",
+    "wie viele sind das": "count",
     "wieviele sind das": "count",
+    "wieviel kostet das": "price",
+    "wie viel kostet das": "price",
+}
+
+KEY_COMMANDS: Dict[str, str] = {
+    "i": "identify",
+    "c": "count",
     "o": "obstacle",
-    "wieviel kostest das": "price",
+    "b": "banknote",
 }
 
 
@@ -23,4 +31,4 @@ def text_to_mode(text: str) -> str:
 def key_to_mode(key: int) -> str:
     if key == -1:
         return "idle"
-    return text_to_mode(chr(key))
+    return KEY_COMMANDS.get(chr(key).lower(), "idle")

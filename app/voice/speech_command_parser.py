@@ -19,6 +19,7 @@ class SpeechCommandParser:
     COUNT_KEYWORDS = [
         "wie viele",
         "wieviele",
+        "wie viele sind das",
         "wieviele sind das",
         "anzahl",
         "wie oft",
@@ -27,6 +28,8 @@ class SpeechCommandParser:
     PRICE_KEYWORDS = [
         "was kostet",
         "wie viel kostet",
+        "wieviel kostet das",
+        "wie viel kostet das",
         "wieviel kostest das",
         "preis",
         "kosten",

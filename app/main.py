@@ -17,7 +17,7 @@ from app.config import DEBUG_DRAW, WINDOW_NAME
 from app.logic_module import DecisionEngine
 from app.speech_module import SpeechEngine
 from app.vision_module import VisionEngine
-from app.voice.commands import text_to_mode
+from app.voice.commands import key_to_mode, text_to_mode
 from app.voice.interaction_controller import InteractionController
 from app.voice.stt_vosk_stub import VoskSttStub
 
@@ -93,15 +93,17 @@ def main() -> None:
             if key in (ord("q"), 27):
                 break
 
-            try:
-                spoken_text = command_queue.get_nowait()
-            except queue.Empty:
-                continue
+            mode = key_to_mode(key)
+            if mode == "idle":
+                try:
+                    spoken_text = command_queue.get_nowait()
+                except queue.Empty:
+                    continue
 
-            if spoken_text.lower() in ("q", "quit", "exit"):
-                break
+                if spoken_text.lower() in ("q", "quit", "exit"):
+                    break
 
-            mode = text_to_mode(spoken_text)
+                mode = text_to_mode(spoken_text)
             if mode == "idle":
                 continue
 
