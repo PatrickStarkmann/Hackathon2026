@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.DS_Store
+.env
+.env.*
+.vscode/
+.idea/
+assets/*.pt
+assets/*.onnx
+assets/*.tflite
+assets/*.bin
