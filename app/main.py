@@ -16,6 +16,7 @@ from app.logic_module import DecisionEngine
 from app.price.price_module import PriceEngine
 from app.price_ocr_module import PriceOCREngine
 from app.speech_module import SpeechEngine
+from app.text_ocr_module import TextOCREngine
 from app.vision_module import VisionEngine
 from app.voice.commands import key_to_mode
 from app.voice.interaction_controller import InteractionController
@@ -116,6 +117,7 @@ def main() -> None:
     banknote = BanknoteEngine()
     price = PriceEngine()
     price_ocr = PriceOCREngine()
+    text_ocr = TextOCREngine()
 
     if DEBUG_DRAW:
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
@@ -126,26 +128,35 @@ def main() -> None:
     last_spoken_text = ""
     try:
         while True:
-            frame = camera.read()
-            if frame is None:
+            raw_frame = camera.read()
+            if raw_frame is None:
                 logging.warning("No frame received from camera.")
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
                 continue
-            detections = vision.detect(frame)
+            detections = vision.detect(raw_frame)
             display_mode = active_mode or mode
             if DEBUG_DRAW:
-                _draw_debug(frame, detections, camera.fps, display_mode, last_decision)
-                cv2.imshow(WINDOW_NAME, frame)
+                display_frame = raw_frame.copy()
+                _draw_debug(
+                    display_frame, detections, camera.fps, display_mode, last_decision
+                )
+                cv2.imshow(WINDOW_NAME, display_frame)
 
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 break
             if key in (ord("p"), ord("P")):
-                ocr_result = price_ocr.extract_price(frame)
+                ocr_result = price_ocr.extract_price(raw_frame)
                 if ocr_result.text:
                     speech.speak(ocr_result.text)
                     logging.info("Price OCR: %s", ocr_result.debug_text)
+                continue
+            if key in (ord("t"), ord("T")):
+                text_result = text_ocr.extract_text(raw_frame, mode="short")
+                if text_result.text_to_say:
+                    speech.speak(text_result.text_to_say)
+                    logging.info("Text OCR: %s", text_result.debug_text)
                 continue
             mode = key_to_mode(key)
             if mode in {"banknote", "price"}:
@@ -153,11 +164,11 @@ def main() -> None:
             elif mode != "idle":
                 active_mode = None
                 if mode == "banknote":
-                    decision = banknote.predict(frame)
+                    decision = banknote.predict(raw_frame)
                 elif mode == "price":
-                    decision = price.predict(frame)
+                    decision = price.predict(raw_frame)
                 else:
-                    decision = logic.decide(mode, detections, frame.shape)
+                    decision = logic.decide(mode, detections, raw_frame.shape)
                 last_decision = decision
                 spoken_text = _format_spoken_text(decision, mode, interaction)
                 if spoken_text and spoken_text != last_spoken_text and speech.can_speak():
@@ -166,7 +177,7 @@ def main() -> None:
                     logging.info("Decision: %s", decision.debug_text)
 
             if active_mode == "banknote":
-                roi = _extract_roi(frame, detections)
+                roi = _extract_roi(raw_frame, detections)
                 decision = banknote.predict(roi)
                 last_decision = decision
                 spoken_text = _format_spoken_text(decision, "banknote", interaction)
@@ -175,7 +186,7 @@ def main() -> None:
                     last_spoken_text = spoken_text
                     logging.info("Decision: %s", decision.debug_text)
             elif active_mode == "price":
-                roi = _extract_roi(frame, detections)
+                roi = _extract_roi(raw_frame, detections)
                 decision = price.predict(roi)
                 last_decision = decision
                 spoken_text = _format_spoken_text(decision, "price", interaction)
