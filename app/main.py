@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import os
+import queue
+import threading
 from typing import List
 
 import cv2
@@ -15,8 +17,9 @@ from app.config import DEBUG_DRAW, WINDOW_NAME
 from app.logic_module import DecisionEngine
 from app.speech_module import SpeechEngine
 from app.vision_module import VisionEngine
-from app.voice.commands import key_to_mode
+from app.voice.commands import text_to_mode
 from app.voice.interaction_controller import InteractionController
+from app.voice.stt_vosk_stub import VoskSttStub
 
 
 def _draw_debug(frame, detections: List[Detection], fps: float, mode: str) -> None:
@@ -56,6 +59,19 @@ def main() -> None:
     interaction = InteractionController(speech)
     banknote = BanknoteEngine()
 
+    command_queue: queue.Queue[str] = queue.Queue()
+    stop_event = threading.Event()
+    stt = VoskSttStub()
+    if stt.available():
+        threading.Thread(
+            target=stt.listen_loop,
+            name="VoskListener",
+            args=(command_queue, stop_event),
+            daemon=True,
+        ).start()
+    else:
+        logging.warning("STT unavailable; set VOSK_MODEL_PATH to a Vosk model directory.")
+
     if DEBUG_DRAW:
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
 
@@ -76,7 +92,16 @@ def main() -> None:
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 break
-            mode = key_to_mode(key)
+
+            try:
+                spoken_text = command_queue.get_nowait()
+            except queue.Empty:
+                continue
+
+            if spoken_text.lower() in ("q", "quit", "exit"):
+                break
+
+            mode = text_to_mode(spoken_text)
             if mode == "idle":
                 continue
 
@@ -100,6 +125,7 @@ def main() -> None:
                 speech.speak(spoken_text)
                 logging.info("Decision: %s", decision.debug_text)
     finally:
+        stop_event.set()
         camera.release()
         cv2.destroyAllWindows()
 
