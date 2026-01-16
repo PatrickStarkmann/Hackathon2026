@@ -38,7 +38,8 @@ class TfliteBanknoteStub:
         self._reason: Optional[str] = None
 
         if self._labels_path.exists():
-            self._labels = [line.strip() for line in self._labels_path.read_text().splitlines() if line.strip()]
+            raw_labels = [line.strip() for line in self._labels_path.read_text().splitlines() if line.strip()]
+            self._labels = [self._normalize_label(line) for line in raw_labels]
             missing = self._expected_labels.difference({label.lower() for label in self._labels})
             if missing:
                 self._logger.warning("Banknote labels missing expected classes: %s", ", ".join(sorted(missing)))
@@ -137,3 +138,10 @@ class TfliteBanknoteStub:
                 data = data / scale + zero
 
         return data
+
+    @staticmethod
+    def _normalize_label(line: str) -> str:
+        parts = line.split(maxsplit=1)
+        if len(parts) == 2 and parts[0].isdigit():
+            return parts[1].strip()
+        return line.strip()
