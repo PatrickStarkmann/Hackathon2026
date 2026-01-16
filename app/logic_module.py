@@ -73,23 +73,31 @@ class DecisionEngine:
             return self._uncertain("Unsicher, Kamera näher an das Produkt halten")
 
         # Voting für stabilen Label über mehrere Frames
+        last_label = self._label_votes_identify.last()
+        if last_label is not None and last_label != top.label:
+            # Reset votes and confidence history when object changes to avoid carryover.
+            self._label_votes_identify.clear()
+            self._conf_history_identify.clear()
         self._label_votes_identify.add(top.label)
         stable_label = self._label_votes_identify.majority(VOTE_MIN)
-
-        if stable_label is None:
-            return self._uncertain("Unsicher, bitte Kamera ruhiger halten")
+        chosen_label = stable_label or top.label
 
         position = self._position(top.bbox, frame_shape)
         pos_text = self._spoken_position(position)
 
         # Konfidenz nicht ansagen, nur nutzen
-        text = SpeechFormatter.identify(stable_label, pos_text)
-        debug = f"Identify {stable_label} (raw={top.label}, conf={top.conf:.2f}, smooth={smoothed_conf:.2f}) {position}"
+        text = SpeechFormatter.identify(chosen_label, pos_text)
+        stability = "stable" if stable_label is not None else "unstable"
+        conf = smoothed_conf if stable_label is not None else 0.6
+        debug = (
+            f"Identify {chosen_label} ({stability}, raw={top.label}, "
+            f"conf={top.conf:.2f}, smooth={smoothed_conf:.2f}) {position}"
+        )
         return Decision(
             text_to_say=text,
             debug_text=debug,
-            conf=smoothed_conf,
-            label=stable_label,
+            conf=conf,
+            label=chosen_label,
             position_text=pos_text,
         )
 
@@ -122,6 +130,10 @@ class DecisionEngine:
         dominant_label = max(label_counts.items(), key=lambda item: item[1])[0]
 
         # Voting fuer stabilen Typ
+        last_label = self._label_votes_count.last()
+        if last_label is not None and last_label != dominant_label:
+            # Reset votes when dominant object switches to avoid stale labels.
+            self._label_votes_count.clear()
         self._label_votes_count.add(dominant_label)
         stable_label = self._label_votes_count.majority(VOTE_MIN)
 
