@@ -42,6 +42,11 @@ class InteractionController:
         preis_cent: int | None = None,
         position_text: str | None = None,
     ) -> str | None:
+        if command == "banknote":
+            try:
+                return SpeechFormatter.banknote(int(gegenstand))
+            except (TypeError, ValueError):
+                return None
         if command == "identify":
             return SpeechFormatter.identify(gegenstand, position_text)
         if command == "count":

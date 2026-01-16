@@ -84,6 +84,24 @@ def _extract_roi(frame, detections: List[Detection]):
     return frame[y1:y2, x1:x2]
 
 
+def _format_spoken_text(
+    decision: Decision, mode: str, interaction: InteractionController
+) -> str:
+    if not decision.text_to_say:
+        return ""
+    if decision.label and mode in {"identify", "count", "price", "full", "banknote"}:
+        formatted = interaction.format_for_command(
+            mode,
+            gegenstand=decision.label,
+            anzahl=decision.count,
+            preis_cent=decision.price_cent,
+            position_text=decision.position_text,
+        )
+        if formatted:
+            return formatted
+    return decision.text_to_say
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
     weights_path = os.path.join("assets", "yolo_weights.pt")
@@ -133,26 +151,29 @@ def main() -> None:
                 else:
                     decision = logic.decide(mode, detections, frame.shape)
                 last_decision = decision
-                if decision.text_to_say and decision.text_to_say != last_spoken_text and speech.can_speak():
-                    speech.speak(decision.text_to_say)
-                    last_spoken_text = decision.text_to_say
+                spoken_text = _format_spoken_text(decision, mode, interaction)
+                if spoken_text and spoken_text != last_spoken_text and speech.can_speak():
+                    speech.speak(spoken_text)
+                    last_spoken_text = spoken_text
                     logging.info("Decision: %s", decision.debug_text)
 
             if active_mode == "banknote":
                 roi = _extract_roi(frame, detections)
                 decision = banknote.predict(roi)
                 last_decision = decision
-                if decision.text_to_say and decision.text_to_say != last_spoken_text and speech.can_speak():
-                    speech.speak(decision.text_to_say)
-                    last_spoken_text = decision.text_to_say
+                spoken_text = _format_spoken_text(decision, "banknote", interaction)
+                if spoken_text and spoken_text != last_spoken_text and speech.can_speak():
+                    speech.speak(spoken_text)
+                    last_spoken_text = spoken_text
                     logging.info("Decision: %s", decision.debug_text)
             elif active_mode == "price":
                 roi = _extract_roi(frame, detections)
                 decision = price.predict(roi)
                 last_decision = decision
-                if decision.text_to_say and decision.text_to_say != last_spoken_text and speech.can_speak():
-                    speech.speak(decision.text_to_say)
-                    last_spoken_text = decision.text_to_say
+                spoken_text = _format_spoken_text(decision, "price", interaction)
+                if spoken_text and spoken_text != last_spoken_text and speech.can_speak():
+                    speech.speak(spoken_text)
+                    last_spoken_text = spoken_text
                     logging.info("Decision: %s", decision.debug_text)
     finally:
         camera.release()
