@@ -18,3 +18,7 @@ class Decision:
     text_to_say: str
     debug_text: str
     conf: float = 0.0
+    label: str | None = None
+    count: int | None = None
+    price_cent: int | None = None
+    position_text: str | None = None

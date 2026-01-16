@@ -1,9 +1,9 @@
 # interaction_controller.py
 from __future__ import annotations
 
-from speech_command_parser import SpeechCommandParser
-from speech_formatter import SpeechFormatter
-from speech_module import SpeechEngine
+from app.voice.speech_command_parser import SpeechCommandParser
+from app.voice.speech_formatter import SpeechFormatter
+from app.speech_module import SpeechEngine
 
 
 class InteractionController:
@@ -21,34 +21,37 @@ class InteractionController:
         gegenstand: str,
         anzahl: int | None = None,
         preis_cent: int | None = None,
+        position_text: str | None = None,
     ) -> None:
         command = SpeechCommandParser.parse(spoken_text)
+        text = self.format_for_command(
+            command,
+            gegenstand=gegenstand,
+            anzahl=anzahl,
+            preis_cent=preis_cent,
+            position_text=position_text,
+        )
+        self.speech.speak(text or "Das habe ich nicht verstanden.")
 
+    def format_for_command(
+        self,
+        command: str,
+        *,
+        gegenstand: str,
+        anzahl: int | None = None,
+        preis_cent: int | None = None,
+        position_text: str | None = None,
+    ) -> str | None:
         if command == "identify":
-            text = SpeechFormatter.from_data(
-                gegenstand=gegenstand
-            )
-
-        elif command == "count":
-            text = SpeechFormatter.from_data(
-                gegenstand=gegenstand,
-                anzahl=anzahl,
-            )
-
-        elif command == "price":
-            text = SpeechFormatter.from_data(
-                gegenstand=gegenstand,
-                preis_cent=preis_cent,
-            )
-
-        elif command == "full":
-            text = SpeechFormatter.from_data(
-                gegenstand=gegenstand,
-                anzahl=anzahl,
-                preis_cent=preis_cent,
-            )
-
-        else:
-            text = "Das habe ich nicht verstanden."
-
-        self.speech.speak(text)
+            return SpeechFormatter.identify(gegenstand, position_text)
+        if command == "count":
+            if anzahl is None:
+                return None
+            return SpeechFormatter.count(gegenstand, anzahl)
+        if command == "price":
+            if preis_cent is None:
+                return None
+            return SpeechFormatter.price(gegenstand, preis_cent)
+        if command == "full":
+            return SpeechFormatter.full(gegenstand, anzahl, preis_cent)
+        return None

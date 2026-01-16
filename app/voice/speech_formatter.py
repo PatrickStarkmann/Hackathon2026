@@ -11,7 +11,9 @@ class SpeechFormatter:
     # -------------------------------
     # Identify
     @staticmethod
-    def identify(gegenstand: str) -> str:
+    def identify(gegenstand: str, position: str | None = None) -> str:
+        if position:
+            return f"{gegenstand} erkannt. {position}."
         return f"{gegenstand} erkannt."
 
     # -------------------------------
