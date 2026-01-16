@@ -9,6 +9,7 @@ from typing import List, Tuple, Dict
 from app.common import Decision, Detection
 from app.config import CONF_THRESHOLD, OBSTACLE_AREA_THRESHOLD, VOTE_MIN, VOTE_N
 from app.logic.aggregator import VoteAggregator
+from app.voice.speech_formatter import SpeechFormatter
 
 
 class DecisionEngine:
@@ -82,7 +83,7 @@ class DecisionEngine:
         pos_text = self._spoken_position(position)
 
         # Konfidenz nicht ansagen, nur nutzen
-        text = f"{stable_label} {pos_text}"
+        text = f"{SpeechFormatter.identify(stable_label)} {pos_text}"
         debug = f"Identify {stable_label} (raw={top.label}, conf={top.conf:.2f}, smooth={smoothed_conf:.2f}) {position}"
         return Decision(text_to_say=text, debug_text=debug, conf=smoothed_conf)
 
@@ -128,7 +129,7 @@ class DecisionEngine:
         if count == 0:
             return self._uncertain("Unsicher beim Zaehlen, bitte leicht die Perspektive aendern")
 
-        text = f"{count} {chosen_label}"
+        text = SpeechFormatter.count(chosen_label, count)
         debug = (
             f"Count {chosen_label}: {count} "
             f"(filtered={len(filtered)}, raw={len(detections)}, "
