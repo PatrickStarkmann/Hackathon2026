@@ -114,20 +114,28 @@ class DecisionEngine:
         # dominantes Label wählen (das am häufigsten vorkommt)
         dominant_label = max(label_counts.items(), key=lambda item: item[1])[0]
 
-        # Voting für stabilen Typ
+        # Voting für stabilen Typ        # Voting fuer stabilen Typ
         self._label_votes_count.add(dominant_label)
         stable_label = self._label_votes_count.majority(VOTE_MIN)
 
-        if stable_label is None:
-            return self._uncertain("Unsicher, bitte Kamera ruhiger halten")
+        # In Count-Modus nicht komplett blockieren, wenn noch nicht genug Votes da sind
+        # oder das stabile Label im aktuellen Frame fehlt.
+        chosen_label = (
+            stable_label if stable_label in label_counts else dominant_label
+        )
 
-        count = label_counts.get(stable_label, 0)
+        count = label_counts.get(chosen_label, 0)
         if count == 0:
-            return self._uncertain("Unsicher beim Zählen, bitte leicht die Perspektive ändern")
+            return self._uncertain("Unsicher beim Zaehlen, bitte leicht die Perspektive aendern")
 
-        text = f"{count} {stable_label}"
-        debug = f"Count {stable_label}: {count} (filtered={len(filtered)}, raw={len(detections)})"
-        return Decision(text_to_say=text, debug_text=debug, conf=1.0)
+        text = f"{count} {chosen_label}"
+        debug = (
+            f"Count {chosen_label}: {count} "
+            f"(filtered={len(filtered)}, raw={len(detections)}, "
+            f"stable={stable_label})"
+        )
+        conf = 1.0 if stable_label is not None else 0.6
+        return Decision(text_to_say=text, debug_text=debug, conf=conf)
 
     # -----------------------
     # Obstacle-Modus
