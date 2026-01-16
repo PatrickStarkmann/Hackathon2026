@@ -16,11 +16,16 @@ from app.common import Detection
 class VisionEngine:
     """YOLOv8 detection engine with dummy fallback."""
 
-    def __init__(self, weights_path: str) -> None:
+    def __init__(self, weights_path: str, allowed_labels: List[str] | None = None) -> None:
         self._weights_path = Path(weights_path)
         self._logger = logging.getLogger(__name__)
         self._dummy_mode = not self._weights_path.exists()
         self._model = None
+        self._allowed_labels = (
+            {label.strip().lower() for label in allowed_labels}
+            if allowed_labels
+            else None
+        )
         if importlib.util.find_spec("ultralytics") is None:
             self._logger.error(
                 "Ultralytics not installed. Install requirements.txt to use YOLO."
@@ -60,6 +65,8 @@ class VisionEngine:
             names = result.names or getattr(self._model, "names", {})
             for (x1, y1, x2, y2), conf, cls_idx in zip(xyxy, confs, classes):
                 label = names.get(int(cls_idx), str(int(cls_idx)))
+                if self._allowed_labels and label.lower() not in self._allowed_labels:
+                    continue
                 bbox = self._clip_bbox((x1, y1, x2, y2), width, height)
                 detections.append(
                     Detection(label=label, conf=float(conf), bbox=bbox)

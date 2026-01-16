@@ -47,7 +47,9 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
     weights_path = os.path.join("assets", "yolo_weights.pt")
     camera = CameraStream()
-    vision = VisionEngine(weights_path=weights_path)
+    vision = VisionEngine(
+        weights_path=weights_path, allowed_labels=["banana", "orange", "bottle"]
+    )
     logic = DecisionEngine()
     speech = SpeechEngine()
     banknote = BanknoteEngine()
