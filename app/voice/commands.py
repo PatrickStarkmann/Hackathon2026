@@ -11,12 +11,14 @@ COMMANDS: Dict[str, str] = {
     "wieviele sind das": "count",
     "wieviel kostet das": "price",
     "wie viel kostet das": "price",
+    "geldschein": "banknote",
 }
 
 KEY_COMMANDS: Dict[str, str] = {
     "i": "identify",
     "c": "count",
     "o": "obstacle",
+
     "b": "banknote",
     "p": "price",
 }
