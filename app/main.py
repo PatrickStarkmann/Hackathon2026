@@ -14,6 +14,7 @@ from app.common import Decision, Detection
 from app.config import DEBUG_DRAW, WINDOW_NAME
 from app.logic_module import DecisionEngine
 from app.price.price_module import PriceEngine
+from app.price_ocr_module import PriceOCREngine
 from app.speech_module import SpeechEngine
 from app.vision_module import VisionEngine
 from app.voice.commands import key_to_mode
@@ -114,6 +115,7 @@ def main() -> None:
     interaction = InteractionController(speech)
     banknote = BanknoteEngine()
     price = PriceEngine()
+    price_ocr = PriceOCREngine()
 
     if DEBUG_DRAW:
         cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
@@ -139,6 +141,12 @@ def main() -> None:
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), 27):
                 break
+            if key in (ord("p"), ord("P")):
+                ocr_result = price_ocr.extract_price(frame)
+                if ocr_result.text:
+                    speech.speak(ocr_result.text)
+                    logging.info("Price OCR: %s", ocr_result.debug_text)
+                continue
             mode = key_to_mode(key)
             if mode in {"banknote", "price"}:
                 active_mode = mode
